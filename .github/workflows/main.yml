@@ -1,0 +1,69 @@
+name: Project Lint
+
+on:
+  pull_request:
+    branches: [dev]
+
+jobs:
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  backend-lint:
+    name: Backend Lint (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true  # кэширует GOPATH/pkg/mod и go build cache по go.sum
+
+      - name: Cache golangci-lint cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/golangci-lint
+          key: ${{ runner.os }}-golangci-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golangci-
+
+      - name: Check formatting (gofmt)
+        run: |
+          fmt_out="$(gofmt -s -l .)"
+          if [ -n "$fmt_out" ]; then
+            echo "These files are not formatted:"
+            echo "$fmt_out"
+            echo
+            echo "Run: gofmt -s -w ."
+            exit 1
+          fi
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: backend
+          args: --timeout=5m
